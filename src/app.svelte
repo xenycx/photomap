@@ -21,7 +21,7 @@
   let markersComponent: MapLocationMarkers;
   let uploadModal: any;
   let showMarkers = true;
-  const lightMapStyle = "https://tiles.openfreemap.org/styles/liberty";
+  const lightMapStyle = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
   const darkMapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
   let showFormPopup = false;
   
