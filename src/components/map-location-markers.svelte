@@ -136,7 +136,7 @@
                 try {
                   const { convex } = await import('../lib/convex');
                   const { api } = await import('../../convex/_generated/api');
-                  const photos = await convex.query(api.photos.getPhotosForLocation, { locationId: markerData._id });
+                  const photos = await convex.query(api.photos.getPhotosForLocation, { locationId: markerData._id as any });
                   
                   if (photos.length > 0) {
                     photosContainer.innerHTML = photos.map((p: any) => `

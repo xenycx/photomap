@@ -22,7 +22,7 @@ export async function fetchMarkers(): Promise<void> {
     markersError.set(null);
     markersLoading.set(true);
     
-    const locations = await convex.query(api.photos.getLocations);
+    const locations = await convex.query(api.photos.getLocations, {});
 
     const parsedMarkers: Marker[] = locations.map((loc) => ({
       _id: loc._id,
@@ -30,6 +30,7 @@ export async function fetchMarkers(): Promise<void> {
       description: loc.description,
       coordinates: loc.coordinates as [number, number],
       google_maps_link: loc.google_maps_link || '#',
+      emojiType: loc.emojiType || '📍',
       timestamp: new Date(),
     }));
 

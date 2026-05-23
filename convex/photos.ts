@@ -24,11 +24,12 @@ export const generateUploadUrl = mutation({
 
 export const savePhoto = mutation({
   args: {
-    storageId: v.id("_storage"),
+    storageId: v.optional(v.id("_storage")),
     title: v.string(),
     description: v.string(),
     google_maps_link: v.optional(v.string()),
     coordinates: v.array(v.number()), // [lng, lat]
+    emojiType: v.optional(v.string()),
     camera: v.optional(v.string()),
     shutter: v.optional(v.string()),
     iso: v.optional(v.string()),
@@ -58,20 +59,23 @@ export const savePhoto = mutation({
         title: args.title,
         description: args.description,
         google_maps_link: args.google_maps_link,
+        emojiType: args.emojiType,
       });
     }
 
-    // 3. Insert the photo, attached to the target location
-    const photoId = await ctx.db.insert("photos", {
-      locationId: targetLocationId,
-      storageId: args.storageId,
-      camera: args.camera,
-      shutter: args.shutter,
-      iso: args.iso,
-      timestamp: args.timestamp,
-    });
+    // 3. Insert the photo only if storageId is provided
+    if (args.storageId) {
+      await ctx.db.insert("photos", {
+        locationId: targetLocationId,
+        storageId: args.storageId,
+        camera: args.camera,
+        shutter: args.shutter,
+        iso: args.iso,
+        timestamp: args.timestamp,
+      });
+    }
 
-    return photoId;
+    return targetLocationId;
   },
 });
 

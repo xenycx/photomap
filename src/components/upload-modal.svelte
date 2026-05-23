@@ -3,6 +3,7 @@
   import exifr from 'exifr';
   import { convex } from '../lib/convex';
   import { api } from '../../convex/_generated/api';
+  import { EMOJI_CATEGORIES } from '../lib/constants';
 
   export let show = false;
 
@@ -14,6 +15,8 @@
   let google_maps_link = '';
   let uploading = false;
   let error = '';
+
+  let selectedEmoji = '📍';
 
   let lat: number | null = null;
   let lng: number | null = null;
@@ -40,6 +43,7 @@
     shutter = '';
     iso = '';
     timestamp = null;
+    selectedEmoji = '📍';
   }
 
   async function handleFileSelect(e: Event) {
@@ -72,9 +76,18 @@
     }
   }
 
+  function removePhoto() {
+    file = null;
+    camera = '';
+    shutter = '';
+    iso = '';
+    timestamp = null;
+    error = '';
+  }
+
   async function uploadPhoto() {
-    if (!file || lat === null || lng === null) {
-      error = 'გთხოვ აირჩიო ფოტო და მიუთითე კოორდინატები ან მონიშნე რუკაზე.';
+    if (lat === null || lng === null) {
+      error = 'გთხოვ მიუთითო კოორდინატები (შეიყვანე ხელით ან მონიშნე რუკაზე).';
       return;
     }
 
@@ -87,34 +100,40 @@
     error = '';
 
     try {
-      // 1. Get an upload URL from Convex
-      const postUrl = await convex.mutation(api.photos.generateUploadUrl);
+      let storageId: any = undefined;
 
-      // 2. POST the file to the URL
-      const result = await fetch(postUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      
-      const { storageId } = await result.json();
+      if (file) {
+        // 1. Get an upload URL from Convex
+        const postUrl = await convex.mutation(api.photos.generateUploadUrl, {});
 
-      // 3. Save the photo and metadata into the Convex DB
+        // 2. POST the file to the URL
+        const result = await fetch(postUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        
+        const response = await result.json();
+        storageId = response.storageId;
+      }
+
+      // 3. Save the photo (if uploaded) and metadata into the Convex DB
       await convex.mutation(api.photos.savePhoto, {
         storageId,
         title,
         description,
         google_maps_link,
         coordinates: [lng, lat],
-        camera,
-        shutter,
-        iso,
-        timestamp: timestamp || Date.now()
+        emojiType: selectedEmoji === '📍' ? undefined : selectedEmoji,
+        camera: file ? camera : undefined,
+        shutter: file ? shutter : undefined,
+        iso: file ? iso : undefined,
+        timestamp: file ? (timestamp || Date.now()) : undefined
       });
 
       close();
     } catch (err: any) {
-      error = err.message || 'ფოტოს ატვირთვისას დაფიქსირდა შეცდომა';
+      error = err.message || 'ლოკაციის შენახვისას დაფიქსირდა შეცდომა';
     } finally {
       uploading = false;
     }
@@ -141,29 +160,28 @@
     {/if}
 
     <div class="form-group file-group">
-      <label class="file-label" for="photo">
-        <i class="fas fa-cloud-upload-alt"></i> აირჩიე ფოტო
-      </label>
-      <input type="file" id="photo" accept="image/*" on:change={handleFileSelect} />
-      
-      {#if file}
+      <label>ფოტო (არასავალდებულო)</label>
+      {#if !file}
+        <label class="file-label" for="photo">
+          <i class="fas fa-image"></i> აირჩიე ფოტო
+        </label>
+        <input type="file" id="photo" accept="image/*" on:change={handleFileSelect} />
+      {:else}
         <div class="file-details">
-          <span class="file-name"><i class="fas fa-image"></i> {file.name}</span>
-          {#if lat && lng}
-            <small class="success"><i class="fas fa-map-marker-alt"></i> GPS ნაპოვნია</small>
-          {:else}
-            <small class="warning"><i class="fas fa-exclamation-triangle"></i> GPS ვერ მოიძებნა</small>
-            <div class="manual-coords">
-              <p style="margin:6px 0;color:#ccc;font-size:0.9rem;">შეგიძლია მონიშნო ადგილი რუკაზე ან შეიყვანო კოორდინატები دستی.</p>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <button class="btn-mark" on:click={() => dispatch('requestMark')}>რუკაზე მონიშნე</button>
-                <div style="display:flex;gap:6px;align-items:center;">
-                  <input type="number" step="any" placeholder="Latitude (მაგ. 41.715)" bind:value={lat} />
-                  <input type="number" step="any" placeholder="Longitude (მაგ. 44.827)" bind:value={lng} />
-                </div>
-              </div>
-            </div>
-          {/if}
+          <div class="file-info-row">
+            <span class="file-name"><i class="fas fa-image"></i> {file.name}</span>
+            <button class="btn-remove-photo" type="button" on:click={removePhoto} title="ფოტოს წაშლა">
+              <i class="fas fa-times"></i> წაშლა
+            </button>
+          </div>
+          
+          <div class="gps-status-container">
+            {#if lat !== null && lng !== null}
+              <small class="success"><i class="fas fa-map-marker-alt"></i> GPS კოორდინატები ნაპოვნია</small>
+            {:else}
+              <small class="warning"><i class="fas fa-exclamation-triangle"></i> ფოტოში GPS ვერ მოიძებნა</small>
+            {/if}
+          </div>
           
           {#if camera || shutter || iso}
             <div class="meta-pills">
@@ -174,6 +192,31 @@
           {/if}
         </div>
       {/if}
+    </div>
+
+    <!-- Coordinate selection is ALWAYS visible -->
+    <div class="form-group">
+      <label>კოორდინატები *</label>
+      <div class="manual-coords">
+        {#if lat === null || lng === null}
+          <p class="coords-help">შეგიძლია მონიშნო ადგილი რუკაზე ან შეიყვანო კოორდინატები ხელით.</p>
+        {/if}
+        <div class="coords-row">
+          <button class="btn-mark" type="button" on:click={() => dispatch('requestMark')}>
+            <i class="fas fa-map-pin"></i> რუკაზე მონიშვნა
+          </button>
+          <div class="coords-inputs">
+            <div class="input-wrapper">
+              <span class="input-prefix">LAT</span>
+              <input type="number" step="any" placeholder="განედი" bind:value={lat} />
+            </div>
+            <div class="input-wrapper">
+              <span class="input-prefix">LNG</span>
+              <input type="number" step="any" placeholder="გრძედი" bind:value={lng} />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="form-group">
@@ -187,17 +230,33 @@
     </div>
 
     <div class="form-group">
+      <label>კატეგორია (აირჩიე ერთი)</label>
+      <div class="category-select-grid">
+        {#each EMOJI_CATEGORIES as cat}
+          <button
+            type="button"
+            class="category-select-btn {selectedEmoji === cat.emoji ? 'active' : ''}"
+            on:click={() => selectedEmoji = cat.emoji}
+          >
+            <span class="btn-emoji">{cat.emoji}</span>
+            <span class="btn-text">{cat.description}</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="form-group">
       <label for="gmaps">Google Maps-ის ლინკი (არასავალდებულო)</label>
       <input type="text" id="gmaps" bind:value={google_maps_link} placeholder="https://maps.google.com/..." />
     </div>
 
     <div class="actions">
       <button class="btn-cancel" on:click={close} disabled={uploading}>გაუქმება</button>
-      <button class="btn-upload" on:click={uploadPhoto} disabled={uploading || !file}>
+      <button class="btn-upload" on:click={uploadPhoto} disabled={uploading || !title.trim() || lat === null || lng === null}>
         {#if uploading}
           <i class="fas fa-spinner fa-spin"></i> იტვირთება...
         {:else}
-          <i class="fas fa-paper-plane"></i> ატვირთვა
+          <i class="fas fa-paper-plane"></i> {file ? 'ატვირთვა და შენახვა' : 'ლოკაციის შენახვა'}
         {/if}
       </button>
     </div>
@@ -297,11 +356,153 @@
   }
   .file-name { font-size: 0.9rem; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   
+  .file-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  
+  .btn-remove-photo {
+    background: transparent;
+    border: none;
+    color: #f48771;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+  }
+
+  .btn-remove-photo:hover {
+    background: rgba(244, 135, 113, 0.1);
+    color: #ff9e8b;
+  }
+
   .error { color: #f48771; margin-bottom: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
   .success { color: #98c379; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 500;}
   .warning { color: #d19a66; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 500;}
 
-  .meta-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .gps-status-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  
+  .coords-help {
+    margin: 6px 0 10px 0;
+    color: #abb2bf;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  .coords-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin-top: 6px;
+  }
+  
+  @media (min-width: 380px) {
+    .coords-row {
+      flex-direction: row;
+      align-items: center;
+    }
+  }
+
+  .btn-mark {
+    background: #363b42;
+    color: #61dafb;
+    border: 1px solid #61dafb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    height: 38px;
+  }
+  
+  .btn-mark:hover {
+    background: #61dafb;
+    color: #282c33;
+  }
+
+  .coords-inputs {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    width: 100%;
+  }
+
+  .input-wrapper {
+    display: flex;
+    align-items: center;
+    background: #1e2227;
+    border: 1px solid #3e4451;
+    border-radius: 6px;
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    box-sizing: border-box;
+  }
+
+  .input-wrapper:focus-within {
+    border-color: #61dafb;
+  }
+
+  .input-prefix {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #61dafb;
+    background: #282c33;
+    padding: 0 6px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid #3e4451;
+    border-top-left-radius: 5px;
+    border-bottom-left-radius: 5px;
+    user-select: none;
+  }
+
+  .input-wrapper input {
+    background: transparent;
+    color: #f0f0f0;
+    border: none;
+    padding: 0 8px;
+    width: 100%;
+    height: 100%;
+    font-size: 0.85rem;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+  
+  .input-wrapper input:focus {
+    outline: none;
+  }
+
+  .input-wrapper input::-webkit-outer-spin-button,
+  .input-wrapper input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .input-wrapper input[type=number] {
+    -moz-appearance: textfield;
+  }
+
+  .meta-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .pill { background: #363b42; color: #abb2bf; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; display: flex; align-items: center; gap: 4px;}
 
   .actions {
@@ -327,4 +528,50 @@
   .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-cancel { background: transparent; color: #abb2bf; border: 1px solid #3e4451;}
   .btn-cancel:hover { background: #363b42; color: #f0f0f0; }
+
+  .category-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+
+  .category-select-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 8px;
+    background: #1e2227;
+    border: 1px solid #3e4451;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #abb2bf;
+  }
+
+  .category-select-btn:hover {
+    border-color: #61dafb;
+    background: #2a2f36;
+    color: #f0f0f0;
+  }
+
+  .category-select-btn.active {
+    border-color: #61dafb;
+    background: rgba(97, 218, 251, 0.12);
+    color: #61dafb;
+    box-shadow: 0 0 8px rgba(97, 218, 251, 0.2);
+  }
+
+  .btn-emoji {
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .btn-text {
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.2;
+  }
 </style>

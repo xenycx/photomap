@@ -7,6 +7,7 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     google_maps_link: v.optional(v.string()),
+    emojiType: v.optional(v.string()),
   }),
   
   photos: defineTable({
