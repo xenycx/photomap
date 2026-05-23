@@ -237,9 +237,9 @@
             type="button"
             class="category-select-btn {selectedEmoji === cat.emoji ? 'active' : ''}"
             on:click={() => selectedEmoji = cat.emoji}
+            title="{cat.emoji} {cat.description}"
           >
             <span class="btn-emoji">{cat.emoji}</span>
-            <span class="btn-text">{cat.description}</span>
           </button>
         {/each}
       </div>
@@ -531,23 +531,22 @@
 
   .category-select-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
   }
 
   .category-select-btn {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 10px 8px;
+    padding: 6px 4px;
     background: #1e2227;
     border: 1px solid #3e4451;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
     color: #abb2bf;
+    min-height: 0;
   }
 
   .category-select-btn:hover {
@@ -560,18 +559,11 @@
     border-color: #61dafb;
     background: rgba(97, 218, 251, 0.12);
     color: #61dafb;
-    box-shadow: 0 0 8px rgba(97, 218, 251, 0.2);
+    box-shadow: 0 0 4px rgba(97, 218, 251, 0.2);
   }
 
   .btn-emoji {
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     line-height: 1;
-  }
-
-  .btn-text {
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-align: center;
-    line-height: 1.2;
   }
 </style>
