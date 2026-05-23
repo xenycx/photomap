@@ -189,26 +189,34 @@
     $map.flyTo({ center: coords, zoom, duration: 1200 });
   }
 
-  // Allow parent to request a single map click to pick coordinates
+  let pickResolve: ((coords: [number, number]) => void) | null = null;
+  let pickReject: ((err: Error) => void) | null = null;
+
   export function pickLocationOnce(): Promise<[number, number]> {
     return new Promise((resolve, reject) => {
       if (!$map) {
         reject(new Error('Map not ready'));
         return;
       }
+      pickResolve = resolve;
+      pickReject = reject;
       const handler = (e: any) => {
         try {
-          const lng = e.lngLat.lng;
-          const lat = e.lngLat.lat;
-          resolve([lng, lat]);
+          resolve([e.lngLat.lng, e.lngLat.lat]);
         } catch (err) {
-          reject(err);
-        } finally {
-          $map.off('click', handler);
+          reject(err as Error);
         }
       };
       $map.once('click', handler);
     });
+  }
+
+  export function cancelPickLocation() {
+    if (pickReject) {
+      pickReject(new Error('Pick cancelled'));
+      pickResolve = null;
+      pickReject = null;
+    }
   }
 
   // Update user location marker

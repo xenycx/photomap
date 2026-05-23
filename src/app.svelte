@@ -63,7 +63,12 @@
       }
     } catch (e) {
       console.error('Marking failed', e);
-      alert('მონიშვნის დროს მოხდა შეცდომა');
+    }
+  }
+
+  function handleCancelMark() {
+    if (markersComponent && typeof markersComponent.cancelPickLocation === 'function') {
+      markersComponent.cancelPickLocation();
     }
   }
 
@@ -173,7 +178,7 @@
   </Sidebar>
 </div>
 
-<UploadModal bind:this={uploadModal} show={showFormPopup} on:requestMark={handleRequestMark} on:close={() => { showFormPopup = false; handleRefresh(); }} />
+<UploadModal bind:this={uploadModal} show={showFormPopup} on:requestMark={handleRequestMark} on:cancelMark={handleCancelMark} on:close={() => { showFormPopup = false; handleRefresh(); }} />
 
 <style>
   :global(body) {

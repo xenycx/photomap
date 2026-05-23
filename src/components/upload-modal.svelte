@@ -17,6 +17,7 @@
   let error = '';
 
   let selectedEmoji = '📍';
+  let pickingLocation = false;
 
   let lat: number | null = null;
   let lng: number | null = null;
@@ -24,6 +25,16 @@
   let shutter = '';
   let iso = '';
   let timestamp: number | null = null;
+
+  function startPickLocation() {
+    pickingLocation = true;
+    dispatch('requestMark');
+  }
+
+  function cancelPickLocation() {
+    pickingLocation = false;
+    dispatch('cancelMark');
+  }
 
   function close() {
     show = false;
@@ -39,6 +50,7 @@
     error = '';
     lat = null;
     lng = null;
+    pickingLocation = false;
     camera = '';
     shutter = '';
     iso = '';
@@ -143,6 +155,7 @@
   export function setCoordinates(newLat: number, newLng: number) {
     lat = newLat;
     lng = newLng;
+    pickingLocation = false;
     error = '';
   }
 </script>
@@ -202,9 +215,15 @@
           <p class="coords-help">შეგიძლია მონიშნო ადგილი რუკაზე ან შეიყვანო კოორდინატები ხელით.</p>
         {/if}
         <div class="coords-row">
-          <button class="btn-mark" type="button" on:click={() => dispatch('requestMark')}>
-            <i class="fas fa-map-pin"></i> რუკაზე მონიშვნა
-          </button>
+          {#if pickingLocation}
+            <button class="btn-mark picking" type="button" on:click={cancelPickLocation}>
+              <i class="fas fa-spinner fa-spin"></i> დააჭირე რუკაზე...
+            </button>
+          {:else}
+            <button class="btn-mark" type="button" on:click={startPickLocation}>
+              <i class="fas fa-map-pin"></i> რუკაზე მონიშვნა
+            </button>
+          {/if}
           <div class="coords-inputs">
             <div class="input-wrapper">
               <span class="input-prefix">LAT</span>
@@ -437,6 +456,23 @@
   .btn-mark:hover {
     background: #61dafb;
     color: #282c33;
+  }
+
+  .btn-mark.picking {
+    background: #2d7a2d;
+    border-color: #4caf50;
+    color: #a5d6a7;
+    animation: pick-pulse 1.5s ease-in-out infinite;
+  }
+
+  .btn-mark.picking:hover {
+    background: #3e8e3e;
+    color: #fff;
+  }
+
+  @keyframes pick-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+    50% { box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.3); }
   }
 
   .coords-inputs {
