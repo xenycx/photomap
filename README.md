@@ -6,5 +6,10 @@ Built with [svelte-maplibre](https://github.com/dimfeld/svelte-maplibre)
 pnpm install
 pnpm dev
 ```
+
+### TODO
+- [ ] Deploy to Vercel (see DEPLOY_TO_VERCEL.md)
+- [ ] Update environment variables for production Convex
+
 ### Screenshot
 ![screenshot](./public/screenshot.png)
