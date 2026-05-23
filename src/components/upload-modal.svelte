@@ -161,13 +161,14 @@
 </script>
 
 {#if show}
-<div class="modal-backdrop" class:pick-mode={pickingLocation} on:click={pickingLocation ? undefined : close}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="modal-backdrop" class:pick-mode={pickingLocation} on:click={pickingLocation ? undefined : close} on:keydown={(e) => e.key === 'Escape' && close()} role="presentation">
   {#if pickingLocation}
     <div class="pick-overlay-notice">
       <i class="fas fa-mouse-pointer"></i> დააჭირე რუკაზე ადგილის ასარჩევად
     </div>
   {/if}
-  <div class="modal-content {pickingLocation ? 'pick-mode' : ''}" on:click|stopPropagation>
+  <div class="modal-content {pickingLocation ? 'pick-mode' : ''}" on:click|stopPropagation role="presentation">
     <div class="modal-header">
       <h2>ფოტოს და ლოკაციის ატვირთვა</h2>
       <button class="close-btn" on:click={close}>&times;</button>
@@ -178,7 +179,7 @@
     {/if}
 
     <div class="form-group file-group">
-      <label>ფოტო (არასავალდებულო)</label>
+      <span class="form-label">ფოტო (არასავალდებულო)</span>
       {#if !file}
         <label class="file-label" for="photo">
           <i class="fas fa-image"></i> აირჩიე ფოტო
@@ -214,7 +215,7 @@
 
     <!-- Coordinate selection is ALWAYS visible -->
     <div class="form-group">
-      <label>კოორდინატები *</label>
+      <span class="form-label">კოორდინატები *</span>
       <div class="manual-coords">
         {#if lat === null || lng === null}
           <p class="coords-help">შეგიძლია მონიშნო ადგილი რუკაზე ან შეიყვანო კოორდინატები ხელით.</p>
@@ -254,7 +255,7 @@
     </div>
 
     <div class="form-group">
-      <label>კატეგორია (აირჩიე ერთი)</label>
+      <span class="form-label">კატეგორია (აირჩიე ერთი)</span>
       <div class="category-select-grid">
         {#each EMOJI_CATEGORIES as cat}
           <button
@@ -365,7 +366,7 @@
     display: flex;
     flex-direction: column;
   }
-  label {
+  label, .form-label {
     font-size: 0.9rem;
     font-weight: 500;
     margin-bottom: 6px;
@@ -577,6 +578,7 @@
   }
   .input-wrapper input[type=number] {
     -moz-appearance: textfield;
+    appearance: textfield;
   }
 
   .meta-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }

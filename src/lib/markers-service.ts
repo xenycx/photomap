@@ -29,7 +29,7 @@ export async function fetchMarkers(): Promise<void> {
       name: loc.title,
       description: loc.description,
       coordinates: loc.coordinates as [number, number],
-      google_maps_link: loc.google_maps_link || '#',
+      google_maps_link: loc.google_maps_link ?? '',
       emojiType: loc.emojiType || '📍',
       timestamp: new Date(),
     }));

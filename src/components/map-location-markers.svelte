@@ -144,10 +144,10 @@
                         <a href="${p.url}" target="_blank">
                           <img src="${p.url}" style="width: 100%; border-radius: 4px; display: block;" />
                         </a>
-                        <div style="font-size: 0.8rem; color: #aaa; margin-top: 4px;">
-                          ${p.camera ? `📸 ${p.camera}` : ''}
-                          ${p.shutter ? `⏱ ${p.shutter}` : ''}
-                          ${p.iso ? `🔆 ${p.iso}` : ''}
+                        <div class="meta-pills">
+                          ${p.camera ? `<span class="pill"><i class="fas fa-camera"></i> ${p.camera}</span>` : ''}
+                          ${p.shutter ? `<span class="pill"><i class="fas fa-stopwatch"></i> ${p.shutter}</span>` : ''}
+                          ${p.iso ? `<span class="pill"><i class="fas fa-sun"></i> ${p.iso}</span>` : ''}
                         </div>
                       </div>
                     `).join('');
@@ -288,6 +288,8 @@
   });
 </script>
 
+<div class="map-markers-host"></div>
+
 <style>
   :global(.user-marker-container) {
     position: relative;
@@ -382,5 +384,29 @@
 
   :global(.marker-popup .share-btn:hover) {
     background-color: #5a6270;
+  }
+
+  :global(.meta-pills) {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+
+  :global(.meta-pills .pill) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #3e4451;
+    color: #c8ccd4;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .map-markers-host {
+    display: none;
   }
 </style>
