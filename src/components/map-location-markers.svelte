@@ -12,7 +12,6 @@
   let markerObjects: { marker: Marker, popup: Popup, data: MarkerData }[] = [];
   let userMarker: Marker | null = null;
   export let showMarkers = true;
-  export let showFormPopup = false;
   let refreshInterval: ReturnType<typeof setInterval> | undefined;
   
   // Show or hide markers
@@ -45,7 +44,7 @@
     const shareUrl = getShareUrl(markerData.name);
     
     return `
-      <div class="marker-popup">
+      <div class="marker-popup" id="popup-${markerData._id || markerData.name}">
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
           <h3 style="margin:0;flex:1;">${markerData.name}</h3>
           <button class="fav-btn" data-name="${markerData.name.replace(/"/g, '&quot;')}" title="${isFav ? 'წაშალე ფავორიტებიდან' : 'დაამატე ფავორიტებში'}" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:2px;">
@@ -53,6 +52,11 @@
           </button>
         </div>
         ${markerData.description ? `<p>${markerData.description}</p>` : ''}
+        
+        <div class="photos-container" id="photos-${markerData._id}">
+          <!-- Photos will be loaded here dynamically -->
+        </div>
+
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
           ${markerData.google_maps_link ? 
             `<a href="${markerData.google_maps_link}" target="_blank" rel="noopener noreferrer" class="gmaps-btn">
@@ -94,10 +98,11 @@
             maxWidth: '300px'
           }).setHTML(buildPopupHTML(markerData));
 
-          popup.on('open', () => {
+          popup.on('open', async () => {
             const popupEl = popup.getElement();
             if (!popupEl) return;
 
+            // ... Existing favicon/share logic ...
             const favBtn = popupEl.querySelector('.fav-btn') as HTMLButtonElement;
             if (favBtn) {
               favBtn.addEventListener('click', () => {
@@ -121,6 +126,38 @@
                   prompt('Copy this link:', url);
                 }
               });
+            }
+
+            // Load Photos for this location
+            if (markerData._id) {
+              const photosContainer = popupEl.querySelector(`#photos-${markerData._id}`);
+              if (photosContainer) {
+                photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: #888;">იტვირთება ფოტოები...</div>';
+                try {
+                  const { convex } = await import('../lib/convex');
+                  const { api } = await import('../../convex/_generated/api');
+                  const photos = await convex.query(api.photos.getPhotosForLocation, { locationId: markerData._id });
+                  
+                  if (photos.length > 0) {
+                    photosContainer.innerHTML = photos.map((p: any) => `
+                      <div style="margin-top: 8px;">
+                        <a href="${p.url}" target="_blank">
+                          <img src="${p.url}" style="width: 100%; border-radius: 4px; display: block;" />
+                        </a>
+                        <div style="font-size: 0.8rem; color: #aaa; margin-top: 4px;">
+                          ${p.camera ? `📸 ${p.camera}` : ''}
+                          ${p.shutter ? `⏱ ${p.shutter}` : ''}
+                          ${p.iso ? `🔆 ${p.iso}` : ''}
+                        </div>
+                      </div>
+                    `).join('');
+                  } else {
+                    photosContainer.innerHTML = '';
+                  }
+                } catch (e) {
+                  photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: red;">ფოტოების ჩატვირთვა ვერ მოხერხდა</div>';
+                }
+              }
             }
           });
 
@@ -150,6 +187,28 @@
   export function flyToLocation(coords: [number, number], zoom: number = 13) {
     if (!$map) return;
     $map.flyTo({ center: coords, zoom, duration: 1200 });
+  }
+
+  // Allow parent to request a single map click to pick coordinates
+  export function pickLocationOnce(): Promise<[number, number]> {
+    return new Promise((resolve, reject) => {
+      if (!$map) {
+        reject(new Error('Map not ready'));
+        return;
+      }
+      const handler = (e: any) => {
+        try {
+          const lng = e.lngLat.lng;
+          const lat = e.lngLat.lat;
+          resolve([lng, lat]);
+        } catch (err) {
+          reject(err);
+        } finally {
+          $map.off('click', handler);
+        }
+      };
+      $map.once('click', handler);
+    });
   }
 
   // Update user location marker
@@ -208,23 +267,11 @@
       }
     });
     
-    window.addEventListener('keydown', handleKeydown);
     return () => {
       unsubscribe();
       if (refreshInterval) clearInterval(refreshInterval);
-      window.removeEventListener('keydown', handleKeydown);
     };
   });
-
-  function handleCloseFormPopup() {
-    showFormPopup = false;
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && showFormPopup) {
-      handleCloseFormPopup();
-    }
-  }
 
   onDestroy(() => {
     if (refreshInterval) clearInterval(refreshInterval);
@@ -232,28 +279,6 @@
     if (userMarker) userMarker.remove();
   });
 </script>
-
-{#if showFormPopup}
-  <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Google Form">
-    <button class="overlay-button" on:click={handleCloseFormPopup} aria-label="Close modal">
-      <span class="sr-only">Close modal</span>
-    </button>
-    <div class="modal-content" role="document">
-      <button class="close-button" on:click={handleCloseFormPopup} aria-label="Close form">&times;</button>
-      <iframe
-        title="Google Form"
-        src="https://docs.google.com/forms/d/e/1FAIpQLSdKgjYeYKX4CGzd5sm96OfYOw1JClfVk8ICa8JGwYukNNrfQA/viewform?embedded=true"
-        width="100%"
-        height="800"
-        frameborder="0"
-        marginheight="0"
-        marginwidth="0"
-      >
-        Loading…
-      </iframe>
-    </div>
-  </div>
-{/if}
 
 <style>
   :global(.user-marker-container) {

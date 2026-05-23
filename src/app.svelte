@@ -7,6 +7,7 @@
   import SidebarTab from "./components/sidebar-tab.svelte";
   import SidebarPane from "./components/sidebar-pane.svelte";
   import CategoryFilterPane from "./components/category-filter-pane.svelte";
+  import UploadModal from "./components/upload-modal.svelte";
   import { mapDarkMode, toggleMapDarkMode } from "./lib/theme-store";
   import { markers, fetchMarkers, markersError } from "./lib/markers-service";
   import { filteredMarkers } from "./lib/filter-store";
@@ -18,6 +19,7 @@
   let sidebarCollapsed = true;
   let activeTab = 'home';
   let markersComponent: MapLocationMarkers;
+  let uploadModal: any;
   let showMarkers = true;
   const lightMapStyle = "https://tiles.openfreemap.org/styles/liberty";
   const darkMapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -47,6 +49,21 @@
     await fetchMarkers();
     if (markersComponent) {
       markersComponent.updateMarkers();
+    }
+  }
+
+  // When upload modal requests a map-mark, enable a one-shot pick on the markers component
+  async function handleRequestMark() {
+    showFormPopup = true;
+    try {
+      const coords = await markersComponent.pickLocationOnce();
+      // coords is [lng, lat]
+      if (uploadModal && typeof uploadModal.setCoordinates === 'function') {
+        uploadModal.setCoordinates(coords[1], coords[0]);
+      }
+    } catch (e) {
+      console.error('Marking failed', e);
+      alert('მონიშვნის დროს მოხდა შეცდომა');
     }
   }
 
@@ -81,7 +98,6 @@
     <MapLocationMarkers 
       bind:this={markersComponent} 
       {showMarkers} 
-      bind:showFormPopup={showFormPopup} 
     />
   </MapLibre>
   
@@ -156,6 +172,8 @@
     </svelte:fragment>
   </Sidebar>
 </div>
+
+<UploadModal bind:this={uploadModal} show={showFormPopup} on:requestMark={handleRequestMark} on:close={() => { showFormPopup = false; handleRefresh(); }} />
 
 <style>
   :global(body) {
