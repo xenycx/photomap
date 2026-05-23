@@ -20,9 +20,6 @@ importers:
       maplibre-gl:
         specifier: ^4.7.1
         version: 4.7.1
-      pnpm:
-        specifier: ^11.2.2
-        version: 11.2.2
       svelte-maplibre:
         specifier: ^0.9.14
         version: 0.9.14(svelte@4.2.19)
@@ -728,11 +725,6 @@ packages:
   pmtiles@3.2.0:
     resolution: {integrity: sha512-4v3Nw5xeMxaUReLZQTz3PyM4VM/Lx/Xp/rc2GGEWMl0nqAmcb+gjyi+eOTwfPu8LnB0ash36hz0dV76uYvih5A==}
 
-  pnpm@11.2.2:
-    resolution: {integrity: sha512-NuZiH61QYXiTZFXnAke4gI707CV5ep9DepMoGgIEhOJgf2pGmiLpgph8PbuIZuMHFRSrEKShdJ4G7c0ewRhDbw==}
-    engines: {node: '>=22.13'}
-    hasBin: true
-
   postcss@8.4.47:
     resolution: {integrity: sha512-56rxCq7G/XfB4EkXq9Egn5GCqugWvDFjafDOThIdMBsI15iqPqR5r15TfSr1YPYeEI19YeaXMCbY6u88Y76GLQ==}
     engines: {node: ^10 || ^12 || >=14}
@@ -1402,8 +1394,6 @@ snapshots:
     dependencies:
       '@types/leaflet': 1.9.13
       fflate: 0.8.2
-
-  pnpm@11.2.2: {}
 
   postcss@8.4.47:
     dependencies:
