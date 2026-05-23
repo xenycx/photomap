@@ -4,12 +4,16 @@
   import { convex } from '../lib/convex';
   import { api } from '../../convex/_generated/api';
   import { EMOJI_CATEGORIES } from '../lib/constants';
+  import { compressImage } from '../lib/image-compress';
 
   export let show = false;
 
   const dispatch = createEventDispatcher();
 
   let file: File | null = null;
+  let compressedBlob: Blob | null = null;
+  let compressionPromise: Promise<void> | null = null;
+  let compressionRatio: number | null = null;
   let title = '';
   let description = '';
   let google_maps_link = '';
@@ -44,6 +48,9 @@
 
   function resetForm() {
     file = null;
+    compressedBlob = null;
+    compressionPromise = null;
+    compressionRatio = null;
     title = '';
     description = '';
     google_maps_link = '';
@@ -62,6 +69,8 @@
     const target = e.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
       file = target.files[0];
+      compressedBlob = null;
+      compressionRatio = null;
       error = '';
       
       try {
@@ -85,11 +94,22 @@
         console.error('Failed to parse EXIF', err);
         error = 'მეტამონაცემების წაკითხვა ვერ მოხერხდა. დარწმუნდი, რომ ორიგინალი ფოტოა.';
       }
+
+      // Compress in background while user fills form; await in uploadPhoto
+      compressionPromise = compressImage(file).then((blob) => {
+        compressedBlob = blob;
+        compressionRatio = Math.round((1 - blob.size / file!.size) * 100);
+      }).catch((err) => {
+        console.warn('Compression failed, using original', err);
+      });
     }
   }
 
   function removePhoto() {
     file = null;
+    compressedBlob = null;
+    compressionPromise = null;
+    compressionRatio = null;
     camera = '';
     shutter = '';
     iso = '';
@@ -115,14 +135,20 @@
       let storageId: any = undefined;
 
       if (file) {
-        // 1. Get an upload URL from Convex
+        // 1. Wait for compression to finish (background started in handleFileSelect)
+        if (compressionPromise) await compressionPromise;
+
+        // 2. Get an upload URL from Convex
         const postUrl = await convex.mutation(api.photos.generateUploadUrl, {});
 
-        // 2. POST the file to the URL
+        // 3. Use compressed version (guaranteed ready), fallback to original
+        const body = compressedBlob || file;
+
+        // 3. POST the (compressed) file to the URL
         const result = await fetch(postUrl, {
           method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
+          headers: { "Content-Type": body.type },
+          body,
         });
         
         const response = await result.json();
@@ -202,6 +228,9 @@
             {/if}
           </div>
           
+          {#if compressionRatio !== null}
+            <small class="success"><i class="fas fa-compress-alt"></i> კომპრესირებულია — ზომა შემცირდა {compressionRatio}%-ით</small>
+          {/if}
           {#if camera || shutter || iso}
             <div class="meta-pills">
               {#if camera}<span class="pill"><i class="fas fa-camera"></i> {camera}</span>{/if}
