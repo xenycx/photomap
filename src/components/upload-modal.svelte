@@ -161,8 +161,13 @@
 </script>
 
 {#if show}
-<div class="modal-backdrop" on:click={close}>
-  <div class="modal-content" on:click|stopPropagation>
+<div class="modal-backdrop" class:pick-mode={pickingLocation} on:click={pickingLocation ? undefined : close}>
+  {#if pickingLocation}
+    <div class="pick-overlay-notice">
+      <i class="fas fa-mouse-pointer"></i> დააჭირე რუკაზე ადგილის ასარჩევად
+    </div>
+  {/if}
+  <div class="modal-content {pickingLocation ? 'pick-mode' : ''}" on:click|stopPropagation>
     <div class="modal-header">
       <h2>ფოტოს და ლოკაციის ატვირთვა</h2>
       <button class="close-btn" on:click={close}>&times;</button>
@@ -295,6 +300,42 @@
     justify-content: center;
     align-items: center;
     z-index: 1000;
+  }
+
+  .modal-backdrop.pick-mode {
+    background: rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+  }
+
+  .modal-content.pick-mode {
+    pointer-events: auto;
+    opacity: 0.3;
+    transform: scale(0.95);
+  }
+
+  .pick-overlay-notice {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(76, 175, 80, 0.9);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    animation: notice-bounce 0.3s ease;
+  }
+
+  @keyframes notice-bounce {
+    0% { transform: translateX(-50%) translateY(10px); opacity: 0; }
+    100% { transform: translateX(-50%) translateY(0); opacity: 1; }
   }
   .modal-content {
     background: #282c33;
