@@ -11,6 +11,8 @@ export interface Marker {
   google_maps_link: string;
   emojiType?: string;
   timestamp?: Date;
+  upvotes?: number;
+  downvotes?: number;
 }
 
 export const markers = writable<Marker[]>([]);
@@ -32,6 +34,8 @@ export async function fetchMarkers(): Promise<void> {
       google_maps_link: loc.google_maps_link ?? '',
       emojiType: loc.emojiType || '📍',
       timestamp: new Date(),
+      upvotes: loc.upvotes || 0,
+      downvotes: loc.downvotes || 0,
     }));
 
     markers.set(parsedMarkers);

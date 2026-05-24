@@ -5,14 +5,15 @@
   import { api } from '../../convex/_generated/api';
   import { EMOJI_CATEGORIES } from '../lib/constants';
   import { compressImage } from '../lib/image-compress';
+  import { markers } from '../lib/markers-service';
 
   export let show = false;
 
   const dispatch = createEventDispatcher();
 
-  let file: File | null = null;
-  let compressedBlob: Blob | null = null;
-  let compressionPromise: Promise<void> | null = null;
+  let files: File[] = [];
+  let compressedBlobs: (Blob | null)[] = [];
+  let compressionPromises: Promise<void>[] = [];
   let compressionRatio: number | null = null;
   let title = '';
   let description = '';
@@ -29,6 +30,79 @@
   let shutter = '';
   let iso = '';
   let timestamp: number | null = null;
+
+  let autoFilledFromMarker: any = null;
+
+  // Haversine formula to calculate distance between two coordinates in meters
+  function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371e3; // Radius of the earth in meters
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; 
+  }
+
+  function checkExistingMarker(currentLat: number | null, currentLng: number | null) {
+    if (currentLat === null || currentLng === null) {
+      if (autoFilledFromMarker) {
+        if (title === autoFilledFromMarker.name) title = '';
+        if (description === autoFilledFromMarker.description) description = '';
+        if (selectedEmoji === (autoFilledFromMarker.emojiType || '📍')) selectedEmoji = '📍';
+        if (google_maps_link === (autoFilledFromMarker.google_maps_link || '')) google_maps_link = '';
+        autoFilledFromMarker = null;
+      }
+      return;
+    }
+
+    const PROXIMITY_THRESHOLD_METERS = 30;
+    let foundMarker = null;
+
+    for (const m of $markers) {
+      if (m.coordinates) {
+        const [mLng, mLat] = m.coordinates as [number, number];
+        const distance = getDistance(currentLat, currentLng, mLat, mLng);
+        if (distance <= PROXIMITY_THRESHOLD_METERS) {
+          foundMarker = m;
+          break;
+        }
+      }
+    }
+
+    if (foundMarker) {
+      const [mLng, mLat] = foundMarker.coordinates as [number, number];
+      if (lat !== mLat || lng !== mLng) {
+        lat = mLat;
+        lng = mLng;
+      }
+      
+      if (!title || (autoFilledFromMarker && title === autoFilledFromMarker.name)) {
+        title = foundMarker.name;
+      }
+      if (!description || (autoFilledFromMarker && description === autoFilledFromMarker.description)) {
+        description = foundMarker.description;
+      }
+      if (selectedEmoji === '📍' || (autoFilledFromMarker && selectedEmoji === (autoFilledFromMarker.emojiType || '📍'))) {
+        selectedEmoji = foundMarker.emojiType || '📍';
+      }
+      if (!google_maps_link || (autoFilledFromMarker && google_maps_link === (autoFilledFromMarker.google_maps_link || ''))) {
+        google_maps_link = foundMarker.google_maps_link || '';
+      }
+      
+      autoFilledFromMarker = foundMarker;
+    } else {
+      if (autoFilledFromMarker) {
+        if (title === autoFilledFromMarker.name) title = '';
+        if (description === autoFilledFromMarker.description) description = '';
+        if (selectedEmoji === (autoFilledFromMarker.emojiType || '📍')) selectedEmoji = '📍';
+        if (google_maps_link === (autoFilledFromMarker.google_maps_link || '')) google_maps_link = '';
+        autoFilledFromMarker = null;
+      }
+    }
+  }
 
   function startPickLocation() {
     pickingLocation = true;
@@ -47,9 +121,9 @@
   }
 
   function resetForm() {
-    file = null;
-    compressedBlob = null;
-    compressionPromise = null;
+    files = [];
+    compressedBlobs = [];
+    compressionPromises = [];
     compressionRatio = null;
     title = '';
     description = '';
@@ -63,52 +137,74 @@
     iso = '';
     timestamp = null;
     selectedEmoji = '📍';
+    autoFilledFromMarker = null;
   }
 
   async function handleFileSelect(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
-      file = target.files[0];
-      compressedBlob = null;
+      files = Array.from(target.files);
+      compressedBlobs = new Array(files.length).fill(null);
+      compressionPromises = [];
       compressionRatio = null;
       error = '';
       
-      try {
-        // Parse metadata using exifr
-        const exif = await exifr.parse(file, true);
-        
-        if (exif && exif.latitude && exif.longitude) {
-          lat = exif.latitude;
-          lng = exif.longitude;
-        } else {
-          error = 'ფოტოში GPS კოორდინატები ვერ მოიძებნა!';
-        }
+      // Try to find EXIF in the files
+      for (const f of files) {
+        try {
+          const exif = await exifr.parse(f, true);
+          let foundMetadata = false;
 
-        if (exif) {
-          camera = exif.Model ? `${exif.Make || ''} ${exif.Model}`.trim() : '';
-          iso = exif.ISO ? `ISO ${exif.ISO}` : '';
-          shutter = exif.ExposureTime ? `1/${Math.round(1 / exif.ExposureTime)}s` : '';
-          timestamp = exif.DateTimeOriginal ? new Date(exif.DateTimeOriginal).getTime() : Date.now();
+          if (exif && exif.latitude && exif.longitude) {
+            if (lat === null && lng === null) {
+              lat = exif.latitude;
+              lng = exif.longitude;
+              checkExistingMarker(exif.latitude, exif.longitude);
+            }
+            foundMetadata = true;
+          }
+
+          if (exif) {
+             if (!camera && exif.Model) {
+                 camera = `${exif.Make || ''} ${exif.Model}`.trim();
+                 foundMetadata = true;
+             }
+             if (!iso && exif.ISO) iso = `ISO ${exif.ISO}`;
+             if (!shutter && exif.ExposureTime) shutter = `1/${Math.round(1 / exif.ExposureTime)}s`;
+             if (!timestamp && exif.DateTimeOriginal) {
+                 timestamp = new Date(exif.DateTimeOriginal).getTime();
+             } else if (!timestamp) {
+                 timestamp = Date.now();
+             }
+          }
+
+          if (foundMetadata) break; // Found enough EXIF data
+        } catch (err) {
+          console.warn('Failed to parse EXIF for a file', err);
         }
-      } catch (err) {
-        console.error('Failed to parse EXIF', err);
-        error = 'მეტამონაცემების წაკითხვა ვერ მოხერხდა. დარწმუნდი, რომ ორიგინალი ფოტოა.';
+      }
+
+      if (lat === null && files.length > 0) {
+          error = 'ფოტოებში GPS კოორდინატები ვერ მოიძებნა! მონიშნეთ რუკაზე.';
       }
 
       // Compress in background while user fills form; await in uploadPhoto
-      compressionPromise = compressImage(file).then((blob) => {
-        compressedBlob = blob;
-        compressionRatio = Math.round((1 - blob.size / file!.size) * 100);
-      }).catch((err) => {
-        console.warn('Compression failed, using original', err);
+      files.forEach((f, i) => {
+        const p = compressImage(f).then((blob) => {
+          compressedBlobs[i] = blob;
+          if (i === 0) compressionRatio = Math.round((1 - blob.size / f.size) * 100);
+        }).catch((err) => {
+          console.warn('Compression failed, using original for index', i, err);
+        });
+        compressionPromises.push(p);
       });
     }
   }
 
-  function removePhoto() {
-    file = null;
-    compressedBlob = null;
-    compressionPromise = null;
+  function removePhotos() {
+    files = [];
+    compressedBlobs = [];
+    compressionPromises = [];
     compressionRatio = null;
     camera = '';
     shutter = '';
@@ -132,42 +228,56 @@
     error = '';
 
     try {
-      let storageId: any = undefined;
+      if (files.length > 0) {
+        // Wait for all active background compressions to finish
+        await Promise.all(compressionPromises);
 
-      if (file) {
-        // 1. Wait for compression to finish (background started in handleFileSelect)
-        if (compressionPromise) await compressionPromise;
+        for (let i = 0; i < files.length; i++) {
+          const currentFile = files[i];
+          const currentCompressedBlob = compressedBlobs[i];
 
-        // 2. Get an upload URL from Convex
-        const postUrl = await convex.mutation(api.photos.generateUploadUrl, {});
+          // 1. Get an upload URL from Convex
+          const postUrl = await convex.mutation(api.photos.generateUploadUrl, {});
 
-        // 3. Use compressed version (guaranteed ready), fallback to original
-        const body = compressedBlob || file;
+          // 2. Use compressed version (guaranteed ready), fallback to original
+          const body = currentCompressedBlob || currentFile;
 
-        // 3. POST the (compressed) file to the URL
-        const result = await fetch(postUrl, {
-          method: "POST",
-          headers: { "Content-Type": body.type },
-          body,
+          // 3. POST the (compressed) file to the URL
+          const result = await fetch(postUrl, {
+            method: "POST",
+            headers: { "Content-Type": body.type },
+            body,
+          });
+          
+          const response = await result.json();
+          const storageId = response.storageId;
+
+          // 4. Save the photo and metadata into the Convex DB
+          // Since we await this sequentially, the first photo will create the marker,
+          // and subsequent photos will naturally group into it because they have identical coordinates
+          await convex.mutation(api.photos.savePhoto, {
+            storageId,
+            title,
+            description,
+            google_maps_link,
+            coordinates: [lng, lat],
+            emojiType: selectedEmoji === '📍' ? undefined : selectedEmoji,
+            camera: camera || undefined,
+            shutter: shutter || undefined,
+            iso: iso || undefined,
+            timestamp: timestamp || Date.now()
+          });
+        }
+      } else {
+        // No photos, just create the location marker
+        await convex.mutation(api.photos.savePhoto, {
+          title,
+          description,
+          google_maps_link,
+          coordinates: [lng, lat],
+          emojiType: selectedEmoji === '📍' ? undefined : selectedEmoji
         });
-        
-        const response = await result.json();
-        storageId = response.storageId;
       }
-
-      // 3. Save the photo (if uploaded) and metadata into the Convex DB
-      await convex.mutation(api.photos.savePhoto, {
-        storageId,
-        title,
-        description,
-        google_maps_link,
-        coordinates: [lng, lat],
-        emojiType: selectedEmoji === '📍' ? undefined : selectedEmoji,
-        camera: file ? camera : undefined,
-        shutter: file ? shutter : undefined,
-        iso: file ? iso : undefined,
-        timestamp: file ? (timestamp || Date.now()) : undefined
-      });
 
       close();
     } catch (err: any) {
@@ -183,6 +293,7 @@
     lng = newLng;
     pickingLocation = false;
     error = '';
+    checkExistingMarker(newLat, newLng);
   }
 </script>
 
@@ -204,18 +315,24 @@
       <div class="error"><i class="fas fa-exclamation-circle"></i> {error}</div>
     {/if}
 
+    {#if autoFilledFromMarker}
+      <div class="info-banner">
+        <i class="fas fa-info-circle"></i> ემთხვევა არსებულ ლოკაციას: <strong>{autoFilledFromMarker.name}</strong>. მონაცემები ავტომატურად შეივსო.
+      </div>
+    {/if}
+
     <div class="form-group file-group">
-      <span class="form-label">ფოტო (არასავალდებულო)</span>
-      {#if !file}
+      <span class="form-label">ფოტო (არასავალდებულო, შეგიძლია რამოდენიმე აირჩიო)</span>
+      {#if files.length === 0}
         <label class="file-label" for="photo">
-          <i class="fas fa-image"></i> აირჩიე ფოტო
+          <i class="fas fa-image"></i> აირჩიე ფოტოები
         </label>
-        <input type="file" id="photo" accept="image/*" on:change={handleFileSelect} />
+        <input type="file" id="photo" accept="image/*" multiple on:change={handleFileSelect} />
       {:else}
         <div class="file-details">
           <div class="file-info-row">
-            <span class="file-name"><i class="fas fa-image"></i> {file.name}</span>
-            <button class="btn-remove-photo" type="button" on:click={removePhoto} title="ფოტოს წაშლა">
+            <span class="file-name"><i class="fas fa-images"></i> არჩეულია {files.length} ფოტო</span>
+            <button class="btn-remove-photo" type="button" on:click={removePhotos} title="ფოტოების წაშლა">
               <i class="fas fa-times"></i> წაშლა
             </button>
           </div>
@@ -224,7 +341,7 @@
             {#if lat !== null && lng !== null}
               <small class="success"><i class="fas fa-map-marker-alt"></i> GPS კოორდინატები ნაპოვნია</small>
             {:else}
-              <small class="warning"><i class="fas fa-exclamation-triangle"></i> ფოტოში GPS ვერ მოიძებნა</small>
+              <small class="warning"><i class="fas fa-exclamation-triangle"></i> ფოტოებში GPS ვერ მოიძებნა</small>
             {/if}
           </div>
           
@@ -262,11 +379,11 @@
           <div class="coords-inputs">
             <div class="input-wrapper">
               <span class="input-prefix">LAT</span>
-              <input type="number" step="any" placeholder="განედი" bind:value={lat} />
+              <input type="number" step="any" placeholder="განედი" bind:value={lat} on:blur={() => checkExistingMarker(lat, lng)} />
             </div>
             <div class="input-wrapper">
               <span class="input-prefix">LNG</span>
-              <input type="number" step="any" placeholder="გრძედი" bind:value={lng} />
+              <input type="number" step="any" placeholder="გრძედი" bind:value={lng} on:blur={() => checkExistingMarker(lat, lng)} />
             </div>
           </div>
         </div>
@@ -310,7 +427,7 @@
         {#if uploading}
           <i class="fas fa-spinner fa-spin"></i> იტვირთება...
         {:else}
-          <i class="fas fa-paper-plane"></i> {file ? 'ატვირთვა და შენახვა' : 'ლოკაციის შენახვა'}
+          <i class="fas fa-paper-plane"></i> {files.length > 0 ? (files.length > 1 ? 'ფოტოების ატვირთვა და შენახვა' : 'ატვირთვა და შენახვა') : 'ლოკაციის შენახვა'}
         {/if}
       </button>
     </div>
@@ -475,6 +592,19 @@
   }
 
   .error { color: #f48771; margin-bottom: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
+  .info-banner {
+    background: rgba(97, 218, 251, 0.1);
+    border: 1px solid rgba(97, 218, 251, 0.3);
+    color: #61dafb;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 1.4;
+  }
   .success { color: #98c379; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 500;}
   .warning { color: #d19a66; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 500;}
 

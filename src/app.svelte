@@ -7,6 +7,7 @@
   import SidebarTab from "./components/sidebar-tab.svelte";
   import SidebarPane from "./components/sidebar-pane.svelte";
   import CategoryFilterPane from "./components/category-filter-pane.svelte";
+  import LocationDetailsPane from "./components/location-details-pane.svelte";
   import UploadModal from "./components/upload-modal.svelte";
   import { mapStyleUrl } from "./lib/map-style-store";
   import { markers, fetchMarkers, markersError } from "./lib/markers-service";
@@ -24,6 +25,8 @@
   $: if (!$mapStyleUrl) $mapStyleUrl = MAP_STYLES[0].url; // default on first load
   let showFormPopup = false;
   
+  let selectedLocationForDetails: any = null;
+
   function handleTabClick(tabId: string) {
     if (activeTab === tabId) {
       sidebarCollapsed = !sidebarCollapsed;
@@ -82,6 +85,19 @@
     markersComponent.flyToLocation($userLocation, 14);
   }
 
+  function handleViewDetails(event: CustomEvent) {
+    selectedLocationForDetails = event.detail.marker;
+    activeTab = 'details';
+    sidebarCollapsed = false;
+  }
+
+  function handleLocationUpdated(event: CustomEvent) {
+     if (selectedLocationForDetails && event.detail && selectedLocationForDetails._id === event.detail._id) {
+       selectedLocationForDetails = event.detail;
+     }
+     // Re-fetch markers when updated to ensure the Map popup is synced
+     handleRefresh();
+  }
 
   
   onMount(() => {
@@ -102,6 +118,7 @@
     <MapLocationMarkers 
       bind:this={markersComponent} 
       {showMarkers} 
+      on:viewDetails={handleViewDetails}
     />
   </MapLibre>
   
@@ -115,6 +132,10 @@
         on:click={() => handleTabClick('home')} />
       <SidebarTab id="favorites" icon="fa-heart" active={activeTab === 'favorites'} 
         on:click={() => handleTabClick('favorites')} />
+      {#if selectedLocationForDetails}
+        <SidebarTab id="details" icon="fa-camera-retro" active={activeTab === 'details'} 
+          on:click={() => handleTabClick('details')} />
+      {/if}
       <SidebarTab id="about" icon="fa-info-circle" active={activeTab === 'about'} 
         on:click={() => handleTabClick('about')} />
     </svelte:fragment>
@@ -126,6 +147,14 @@
           onMarkersToggle={handleMarkersToggle}
           onRefresh={handleRefresh}
           onFlyTo={handleFlyTo}
+        />
+      </SidebarPane>
+
+      <SidebarPane id="details" active={activeTab === 'details'}>
+        <LocationDetailsPane 
+           locationData={selectedLocationForDetails}
+           on:back={() => handleTabClick('home')}
+           on:locationUpdated={handleLocationUpdated}
         />
       </SidebarPane>
 

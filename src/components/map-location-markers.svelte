@@ -7,7 +7,10 @@
 
   import { userLocation } from "../lib/geolocation-store";
   import { favoriteNames, toggleFavorite, isFavorite } from "../lib/favorites-store";
+  import { createEventDispatcher } from 'svelte';
   
+  const dispatch = createEventDispatcher();
+
   const { map } = mapContext();
   let markerObjects: { marker: Marker, popup: Popup, data: MarkerData }[] = [];
   let userMarker: Marker | null = null;
@@ -57,14 +60,27 @@
           <!-- Photos will be loaded here dynamically -->
         </div>
 
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <div style="display:flex; gap:8px; margin-top:12px; width: 100%;">
           ${markerData.google_maps_link ? 
-            `<a href="${markerData.google_maps_link}" target="_blank" rel="noopener noreferrer" class="gmaps-btn">
+            `<a href="${markerData.google_maps_link}" target="_blank" rel="noopener noreferrer" class="gmaps-btn" style="flex:1; display:flex; justify-content:center; align-items:center; gap:6px; background:#3a3f47; color:white; padding:8px 0; border-radius:4px; text-decoration:none; font-size:0.9rem;">
                <i class="fas fa-map-marker-alt"></i> Google Maps
              </a>` : ''}
-          <button class="share-btn" data-url="${shareUrl}" title="გააზიარე">
+          <button class="share-btn" data-url="${shareUrl}" title="გააზიარე" style="flex:1; display:flex; justify-content:center; align-items:center; gap:6px; background:#3a3f47; border:none; color:white; padding:8px 0; border-radius:4px; cursor:pointer; font-size:0.9rem;">
             <i class="fas fa-share-alt"></i> გააზიარე
           </button>
+        </div>
+        <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display:flex; gap: 8px; width: 100%;">
+              <button class="vote-btn" data-type="upvote" data-id="${markerData._id}" style="flex:1; background:#3a3f47; border:none; color:white; padding:8px 0; border-radius:4px; cursor:pointer;">
+                👍 <span id="upvotes-${markerData._id}">${markerData.upvotes || 0}</span>
+              </button>
+              <button class="vote-btn" data-type="downvote" data-id="${markerData._id}" style="flex:1; background:#3a3f47; border:none; color:white; padding:8px 0; border-radius:4px; cursor:pointer;">
+                👎 <span id="downvotes-${markerData._id}">${markerData.downvotes || 0}</span>
+              </button>
+            </div>
+            <button class="view-details-btn" data-id="${markerData._id}" style="width:100%; background:#0074d9; border:none; color:white; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">
+              დეტალები და ყველა ფოტო
+            </button>
         </div>
       </div>
     `;
@@ -131,31 +147,81 @@
             // Load Photos for this location
             if (markerData._id) {
               const photosContainer = popupEl.querySelector(`#photos-${markerData._id}`);
+              
+              // Handle Voting
+              const voteBtns = popupEl.querySelectorAll('.vote-btn');
+              voteBtns.forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                  const target = e.currentTarget as HTMLButtonElement;
+                  const type = target.getAttribute('data-type');
+                  const id = target.getAttribute('data-id');
+
+                  const { hasVoted, recordVote } = await import('../lib/voting-store');
+                  if (hasVoted(id as string)) {
+                    alert('თქვენ უკვე დააფიქსირეთ თქვენი ხმა ამ ლოკაციაზე! (You already voted)');
+                    return;
+                  }
+                  recordVote(id as string, type as 'upvote' | 'downvote');
+
+                  // Optimistic update instantly
+                  const span = popupEl.querySelector(`#${type}s-${id}`);
+                  if (span) {
+                    span.textContent = (parseInt(span.textContent || '0') + 1).toString();
+                    if (type === 'upvote') markerData.upvotes = (markerData.upvotes || 0) + 1;
+                    else markerData.downvotes = (markerData.downvotes || 0) + 1;
+                  }
+
+                  const { convex } = await import('../lib/convex');
+                  const { api } = await import('../../convex/_generated/api');
+                  try {
+                    await convex.mutation(api.photos.voteAccuracy, { 
+                      locationId: id as any, 
+                      isUpvote: type === 'upvote' 
+                    });
+                    // Refresh data behind the scenes to sync other components
+                    fetchMarkers();
+                  } catch(err) {
+                    console.error("Vote failed", err);
+                    // Revert slightly on failure
+                    if (span) {
+                       span.textContent = (parseInt(span.textContent || '1') - 1).toString();
+                       if (type === 'upvote') markerData.upvotes = (markerData.upvotes || 1) - 1;
+                       else markerData.downvotes = (markerData.downvotes || 1) - 1;
+                    }
+                  }
+                });
+              });
+
+              // Handle "View Details" click
+              const viewDetailsBtn = popupEl.querySelector('.view-details-btn');
+              if (viewDetailsBtn) {
+                viewDetailsBtn.addEventListener('click', () => {
+                  dispatch('viewDetails', { marker: markerData });
+                });
+              }
+
               if (photosContainer) {
-                photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: #888;">იტვირთება ფოტოები...</div>';
+                photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: #888;">იტვირთება ფოტო...</div>';
                 try {
                   const { convex } = await import('../lib/convex');
                   const { api } = await import('../../convex/_generated/api');
                   const photos = await convex.query(api.photos.getPhotosForLocation, { locationId: markerData._id as any });
                   
                   if (photos.length > 0) {
-                    photosContainer.innerHTML = photos.map((p: any) => `
+                    const p = photos[0]; // ONLY SHOW FIRST PHOTO IN MAP POPUP
+                    photosContainer.innerHTML = `
                       <div style="margin-top: 8px;">
                         <a href="${p.url}" target="_blank">
-                          <img src="${p.url}" style="width: 100%; border-radius: 4px; display: block;" />
+                          <img src="${p.url}" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px; display: block;" />
                         </a>
-                        <div class="meta-pills">
-                          ${p.camera ? `<span class="pill"><i class="fas fa-camera"></i> ${p.camera}</span>` : ''}
-                          ${p.shutter ? `<span class="pill"><i class="fas fa-stopwatch"></i> ${p.shutter}</span>` : ''}
-                          ${p.iso ? `<span class="pill"><i class="fas fa-sun"></i> ${p.iso}</span>` : ''}
-                        </div>
+                        ${photos.length > 1 ? `<div style="font-size: 0.8rem; color: #aaa; text-align: center; margin-top: 4px;">+ ${photos.length - 1} მეტი ფოტო</div>` : ''}
                       </div>
-                    `).join('');
+                    `;
                   } else {
-                    photosContainer.innerHTML = '';
+                     photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: #888;">ფოტოები არ მოიძებნა</div>';
                   }
-                } catch (e) {
-                  photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: red;">ფოტოების ჩატვირთვა ვერ მოხერხდა</div>';
+                } catch(e) {
+                   photosContainer.innerHTML = '<div style="font-size: 0.8rem; color: #ff6b6b;">ფოტოების ჩატვირთვა ვერ მოხერხდა</div>';
                 }
               }
             }
@@ -170,6 +236,26 @@
           inner.textContent = markerData.emojiType || '📍';
           el.appendChild(inner);
           
+          el.addEventListener('click', (e) => {
+            if (pickResolve) {
+              e.stopPropagation();
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              
+              const resolveFn = pickResolve;
+              
+              if (activeMapClickHandler && $map) {
+                $map.off('click', activeMapClickHandler);
+                activeMapClickHandler = null;
+              }
+              
+              pickResolve = null;
+              pickReject = null;
+              
+              resolveFn(markerData.coordinates as [number, number]);
+            }
+          });
+
           const marker = new Marker({ element: el })
             .setLngLat(markerData.coordinates!)
             .setPopup(popup);
@@ -191,6 +277,7 @@
 
   let pickResolve: ((coords: [number, number]) => void) | null = null;
   let pickReject: ((err: Error) => void) | null = null;
+  let activeMapClickHandler: ((e: any) => void) | null = null;
 
   export function pickLocationOnce(): Promise<[number, number]> {
     return new Promise((resolve, reject) => {
@@ -198,20 +285,35 @@
         reject(new Error('Map not ready'));
         return;
       }
+      
+      if (activeMapClickHandler) {
+        $map.off('click', activeMapClickHandler);
+      }
+
       pickResolve = resolve;
       pickReject = reject;
+      
       const handler = (e: any) => {
+        activeMapClickHandler = null;
+        pickResolve = null;
+        pickReject = null;
         try {
           resolve([e.lngLat.lng, e.lngLat.lat]);
         } catch (err) {
           reject(err as Error);
         }
       };
+      
+      activeMapClickHandler = handler;
       $map.once('click', handler);
     });
   }
 
   export function cancelPickLocation() {
+    if (activeMapClickHandler && $map) {
+      $map.off('click', activeMapClickHandler);
+      activeMapClickHandler = null;
+    }
     if (pickReject) {
       pickReject(new Error('Pick cancelled'));
       pickResolve = null;

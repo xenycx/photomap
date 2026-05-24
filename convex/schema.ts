@@ -8,6 +8,8 @@ export default defineSchema({
     description: v.string(),
     google_maps_link: v.optional(v.string()),
     emojiType: v.optional(v.string()),
+    upvotes: v.optional(v.number()),
+    downvotes: v.optional(v.number()),
   }),
   
   photos: defineTable({

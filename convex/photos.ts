@@ -60,6 +60,8 @@ export const savePhoto = mutation({
         description: args.description,
         google_maps_link: args.google_maps_link,
         emojiType: args.emojiType,
+        upvotes: 0,
+        downvotes: 0,
       });
     }
 
@@ -105,3 +107,39 @@ export const getPhotosForLocation = query({
     );
   },
 });
+
+export const updateLocation = mutation({
+  args: {
+    locationId: v.id("locations"),
+    title: v.string(),
+    description: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.locationId, {
+      title: args.title,
+      description: args.description,
+    });
+  },
+});
+
+export const voteAccuracy = mutation({
+  args: {
+    locationId: v.id("locations"),
+    isUpvote: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const location = await ctx.db.get(args.locationId);
+    if (!location) throw new Error("Location not found");
+
+    if (args.isUpvote) {
+      await ctx.db.patch(args.locationId, {
+        upvotes: (location.upvotes || 0) + 1,
+      });
+    } else {
+      await ctx.db.patch(args.locationId, {
+        downvotes: (location.downvotes || 0) + 1,
+      });
+    }
+  },
+});
+
