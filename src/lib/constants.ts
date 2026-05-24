@@ -2,6 +2,23 @@ import type { LngLatLike } from "maplibre-gl";
 
 export const georgiaCenter = [43.5, 42.3] as LngLatLike; // Center of Georgia country
 
+export interface MapStyle {
+  label: string;
+  url: string;
+  desc: string;
+}
+
+export const MAP_STYLES: MapStyle[] = [
+  { label: "Liberty", url: "https://tiles.openfreemap.org/styles/liberty", desc: "Colorful OSM" },
+  { label: "Positron", url: "https://tiles.openfreemap.org/styles/positron", desc: "Clean light" },
+  { label: "Bright", url: "https://tiles.openfreemap.org/styles/bright", desc: "Bright detailed" },
+  { label: "Dark", url: "https://tiles.openfreemap.org/styles/dark", desc: "Dark mode" },
+  { label: "Fiord", url: "https://tiles.openfreemap.org/styles/fiord", desc: "Teal dark" },
+  { label: "Voyager", url: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json", desc: "Detailed street" },
+  { label: "Dark Matter", url: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json", desc: "CARTO dark" },
+  { label: "Positron (CARTO)", url: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", desc: "CARTO light" },
+];
+
 // Categories for marker types
 export interface EmojiCategory {
   emoji: string;

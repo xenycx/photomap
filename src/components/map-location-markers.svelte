@@ -4,7 +4,7 @@
   import { onMount, onDestroy } from "svelte";
   import { markers, fetchMarkers, type Marker as MarkerData } from "../lib/markers-service";
   import { filteredMarkers, getSharedMarkerName, getShareUrl } from "../lib/filter-store";
-  import { mapDarkMode } from "../lib/theme-store";
+
   import { userLocation } from "../lib/geolocation-store";
   import { favoriteNames, toggleFavorite, isFavorite } from "../lib/favorites-store";
   
@@ -94,7 +94,7 @@
           const popup = new Popup({
             closeButton: true,
             closeOnClick: true,
-            className: $mapDarkMode ? 'dark-mode' : '',
+            className: 'dark-mode',
             maxWidth: '300px'
           }).setHTML(buildPopupHTML(markerData));
 
@@ -262,7 +262,6 @@
 
   $: if ($filteredMarkers) updateMarkers();
   $: if ($map) updateMarkers();
-  $: if ($mapDarkMode !== undefined) updateMarkers();
   $: updateUserMarker($userLocation);
 
   onMount(() => {

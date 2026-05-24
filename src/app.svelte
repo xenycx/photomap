@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { MapLibre } from "svelte-maplibre";
-  import { georgiaCenter } from "./lib/constants";
+  import { georgiaCenter, MAP_STYLES } from "./lib/constants";
   import MapLocationMarkers from "./components/map-location-markers.svelte";
   import Sidebar from "./components/sidebar.svelte";
   import SidebarTab from "./components/sidebar-tab.svelte";
   import SidebarPane from "./components/sidebar-pane.svelte";
   import CategoryFilterPane from "./components/category-filter-pane.svelte";
   import UploadModal from "./components/upload-modal.svelte";
-  import { mapDarkMode, toggleMapDarkMode } from "./lib/theme-store";
+  import { mapStyleUrl } from "./lib/map-style-store";
   import { markers, fetchMarkers, markersError } from "./lib/markers-service";
   import { filteredMarkers } from "./lib/filter-store";
   import { favoriteMarkers, favoriteNames, toggleFavorite, isFavorite } from "./lib/favorites-store";
@@ -21,8 +21,7 @@
   let markersComponent: MapLocationMarkers;
   let uploadModal: any;
   let showMarkers = true;
-  const lightMapStyle = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
-  const darkMapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+  $: if (!$mapStyleUrl) $mapStyleUrl = MAP_STYLES[0].url; // default on first load
   let showFormPopup = false;
   
   function handleTabClick(tabId: string) {
@@ -83,7 +82,7 @@
     markersComponent.flyToLocation($userLocation, 14);
   }
 
-  $: currentMapStyle = $mapDarkMode ? darkMapStyle : lightMapStyle;
+
   
   onMount(() => {
     fetchMarkers();
@@ -98,7 +97,7 @@
   <MapLibre
     center={georgiaCenter}
     zoom={7}
-    style={currentMapStyle}
+    style={$mapStyleUrl}
   >
     <MapLocationMarkers 
       bind:this={markersComponent} 
@@ -168,10 +167,12 @@
         <p>საიდბარის ინსპირაცია აღებულია <b>sidebar-v2-დან</b>, იმპლემენტირებული <b>Svelte</b>-ში.</p>
         <p>აქ სხვა ელემენტების დამატება შეიძლება</p>
         <div class="setting-option">
-          <label>
-            <input type="checkbox" checked={$mapDarkMode} on:change={toggleMapDarkMode}>
-            <span>🗺️ რუკის მუქი თემა</span>
-          </label>
+          <label for="map-style-select">🗺️ რუკის სტილი</label>
+          <select id="map-style-select" class="map-style-select" bind:value={$mapStyleUrl}>
+            {#each MAP_STYLES as style}
+              <option value={style.url}>{style.label} — {style.desc}</option>
+            {/each}
+          </select>
         </div>
       </SidebarPane>
     </svelte:fragment>
@@ -197,6 +198,24 @@
     gap: 12px;
     cursor: pointer;
     color: #f0f0f0;
+    margin-bottom: 6px;
+  }
+
+  .map-style-select {
+    width: 100%;
+    padding: 8px 10px;
+    background: #1e2227;
+    color: #f0f0f0;
+    border: 1px solid #3e4451;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .map-style-select:focus {
+    outline: none;
+    border-color: #61dafb;
   }
   
   /* Popup styles */
