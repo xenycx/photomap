@@ -12,4 +12,4 @@ pnpm dev
 - [ ] Update environment variables for production Convex
 
 ### Screenshot
-![screenshot](./public/screenshot.png)
+![screenshot](./public/screenshot_20260616_212659.jpg)
